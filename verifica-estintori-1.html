@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Verifica Estintori</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --line:#2d333b;
+    --ink:#e6edf3; --dim:#7d8590;
+    --ok:#2ea043; --ko:#da3633; --accent:#d29922;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    background:var(--bg);color:var(--ink);
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    display:flex;flex-direction:column;min-height:100dvh;
+    padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  }
+  header{
+    padding:16px 18px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+  }
+  header h1{font-size:15px;font-weight:600;letter-spacing:.5px;text-transform:uppercase}
+  header h1 span{color:var(--accent)}
+  .badge{font-size:12px;color:var(--dim);white-space:nowrap}
+  main{flex:1;display:flex;flex-direction:column;padding:18px;gap:16px}
+
+  button.scan{
+    width:100%;padding:16px;border:none;border-radius:12px;
+    background:var(--accent);color:#1a1300;font-weight:700;font-size:16px;
+    letter-spacing:.5px;cursor:pointer;font-family:inherit;
+  }
+
+  #reader{border-radius:12px;overflow:hidden;display:none}
+  #reader.on{display:block}
+
+  .result{
+    flex:1;display:none;flex-direction:column;align-items:center;justify-content:center;
+    border-radius:16px;padding:28px 20px;text-align:center;gap:8px;
+    border:2px solid var(--line);background:var(--panel);
+  }
+  .result.on{display:flex}
+  .result.match{border-color:var(--ok);background:#0e2a14}
+  .result.nomatch{border-color:var(--ko);background:#2a0e0e}
+  .result .status{font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--dim)}
+  .result.match .status{color:#56d364}
+  .result.nomatch .status{color:#ff7b72}
+  .result .big{
+    font-size:clamp(72px,32vw,200px);font-weight:700;line-height:1;
+    word-break:break-all;letter-spacing:1px;
+  }
+  .result .sub{font-size:13px;color:var(--dim);word-break:break-all;max-width:100%;margin-top:6px}
+  .result .sub b{color:var(--ink)}
+
+  footer{padding:10px 18px;text-align:center;font-size:11px;color:var(--dim);border-top:1px solid var(--line)}
+  .hint{font-size:12px;color:var(--dim);text-align:center;line-height:1.5}
+</style>
+</head>
+<body>
+<header>
+  <h1>Verifica <span>Estintori</span></h1>
+  <span class="badge" id="count">…</span>
+</header>
+
+<main>
+  <button class="scan" id="scanBtn">Avvia scansione</button>
+  <div id="reader"></div>
+  <div class="result" id="result">
+    <div class="status" id="status"></div>
+    <div class="big" id="big"></div>
+    <div class="sub" id="sub"></div>
+  </div>
+  <p class="hint" id="hint">Premi “Avvia scansione” e inquadra il QR.</p>
+</main>
+
+<footer>Tabella incorporata · nessun dato inviato online</footer>
+
+<script>
+// ===== TABELLA INCORPORATA (QR -> codice) =====
+const DATA = {
+  "AA00000000000038889": "E10",
+  "AA00000000000039369": "E09",
+  "AA00000000000038888": "E08",
+  "AA00000000000038884": "E07",
+  "AA00000000000038886": "E06",
+  "AA00000000000038885": "E05",
+  "AA00000000000038981": "E04",
+  "AA00000000000039372": "E01",
+  "AA00000000000075010": "E03",
+  "AA00000000000038890": "E",
+  "AA00000000000039368": "E",
+  "AA00000000000090391": "E",
+  "AA00000000000090377": "E41",
+  "AA00000000000038895": "E20",
+  "PP6-0007582-24": "E21",
+  "PP6-0007590-24": "E22",
+  "AA00000000000038872": "E",
+  "PP6-0007587-24": "E23",
+  "PP6-0037963-25": "E24",
+  "AA00000000000039367": "E29",
+  "PP6-0007603-24": "E25",
+  "AA00000000000038881": "E19",
+  "PP6-0007613-24": "E18",
+  "PP6-0007464-24": "E17",
+  "PP6-007463-24": "E16",
+  "PP6-0007575-24": "E15",
+  "PP6-0007462-24": "E14",
+  "PP6-0007612-24": "E13",
+  "PP6-0007576-24": "E12",
+  "PP6-0007460-24": "E40",
+  "PP6-0007588-24": "E50",
+  "PP6-0007465-24": "E49",
+  "PP6-0007466-24": "E48",
+  "PP6-0007469-24": "E47",
+  "PP6-0007451-24": "E44",
+  "PP6-0004831-24": "E42",
+  "PP6-0007454-24": "E39",
+  "PP6-0007432-24": "E38",
+  "PP6-0007578-24": "E37",
+  "PP6-0007461-24": "E36",
+  "PP6-0007610-24": "E35",
+  "PP6-0007457-24": "E34",
+  "PP6-0007455-24": "E32",
+  "PP6-0007471-24": "E30",
+  "AA00000000000038882": "E28",
+  "PP6-0007458-24": "E26",
+  "PP6-0007601-24": "E72",
+  "PP6-0007449-24": "E65",
+  "PP6-0007450-24": "E66",
+  "PP6-0007606-24": "E67",
+  "PP6-0032591-25": "E68",
+  "PP6-0007602-24": "E69",
+  "PP6-0007472-24": "E70",
+  "PP6-0007585-24": "E71",
+  "PP6-0007431-24": "E43",
+  "AA00000000000039309": "E45",
+  "PP6-0007583-24": "E46",
+  "PP6-0007433-24": "E62",
+  "PP6-0007456-24": "E61",
+  "PP6-0007453-24": "E58",
+  "PP6-0007448-24": "E55",
+  "PP6-0007579-24": "E53",
+  "PP6-0007581-24": "E51",
+  "PP6-0007467-24": "E63",
+  "PP6-0007470-24": "E59",
+  "PP6-0007609-24": "E54",
+  "PP6-0007577-24": "E52",
+  "PP6-0007430-24": "E64",
+  "PP6-0004838-24": "E60",
+  "PP6-0007459-24": "E57",
+  "PP6-0007604-24": "E56",
+  "PP6-0007605-24": "E31",
+  "PP6-0007611-24": "E29",
+  "PP6-0007434-24": "E27"
+};
+// ==============================================
+
+const map = new Map(Object.entries(DATA));
+let scanner = null, scanning = false;
+const $ = id => document.getElementById(id);
+$('count').textContent = map.size + ' estintori';
+
+$('scanBtn').addEventListener('click', () => scanning ? stop() : start());
+
+function start(){
+  $('reader').classList.add('on');
+  $('result').className = 'result';
+  scanner = new Html5Qrcode('reader');
+  scanner.start(
+    {facingMode:'environment'},
+    {fps:10, qrbox:{width:240, height:240}},
+    onScan, ()=>{}
+  ).then(()=>{
+    scanning = true;
+    $('scanBtn').textContent = 'Ferma scansione';
+    $('hint').textContent = 'Inquadra il QR code.';
+  }).catch(err=>{
+    $('hint').textContent = 'Fotocamera non accessibile: ' + err + ' — apri la pagina in HTTPS e consenti la fotocamera.';
+    $('reader').classList.remove('on');
+  });
+}
+
+function stop(){
+  if(scanner){ scanner.stop().then(()=>scanner.clear()).catch(()=>{}); }
+  scanning = false;
+  $('reader').classList.remove('on');
+  $('scanBtn').textContent = 'Avvia scansione';
+}
+
+let last = '', lastT = 0;
+function onScan(text){
+  const now = Date.now();
+  if(text === last && now - lastT < 2500) return;
+  last = text; lastT = now;
+
+  const qr = text.trim();
+  const res = $('result');
+  res.classList.add('on');
+
+  if(map.has(qr)){
+    const code = map.get(qr);
+    res.className = 'result on match';
+    $('status').textContent = 'Corrispondenza trovata';
+    $('big').textContent = code || '—';
+    $('sub').innerHTML = 'QR: <b>' + esc(qr) + '</b>';
+  }else{
+    res.className = 'result on nomatch';
+    $('status').textContent = 'Non in tabella';
+    $('big').textContent = '\u2715';
+    $('sub').innerHTML = 'QR letto: <b>' + esc(qr) + '</b>';
+  }
+  if(navigator.vibrate) navigator.vibrate(80);
+}
+
+function esc(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+</script>
+</body>
+</html>
